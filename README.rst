@@ -43,7 +43,7 @@ STARTTLS via smtp port 25:
 
 ::
 
-    #> python smtpd_tls.py --debug -c DebuggingServer --starttls --keyfile=../server.pem 0.0.0.0:25
+    #> python -m smtpd_tls --debug -c DebuggingServer --starttls --keyfile=../server.pem 0.0.0.0:25
     DebuggingServer started at Thu Feb  4 16:57:06 2016
             Local addr: ('0.0.0.0', 25)
             Remote addr:('mail.somehost.com', 25)
@@ -77,7 +77,7 @@ Implicit TLS via smtp port 465:
 
 ::
 
-    #> python smtpd_tls.py --debug -c DebuggingServer --tls --keyfile=../server.pem 0.0.0.0:465
+    #> python -m smtpd_tls --debug -c DebuggingServer --tls --keyfile=../server.pem 0.0.0.0:465
     DebuggingServer started at Thu Feb  4 17:00:53 2016
             Local addr: ('0.0.0.0', 465)
             Remote addr:('mail.somehost.com', 25)
