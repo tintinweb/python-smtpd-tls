@@ -71,6 +71,7 @@ class SMTPChannel(smtpd.SMTPChannel):
             # re-init the channel
             self = SMTPChannel(self.__server, self.__conn, self.__addr)
             self.__conn.settimeout(None)
+            print >> smtpd.DEBUGSTREAM, 'Peer: %s - negotiated TLS: %s' % (repr(self.__addr), repr(self.__conn.cipher()))
         else:
             self.push('454 TLS not available due to temporary reason')
 
@@ -89,6 +90,7 @@ class SMTPServer(smtpd.SMTPServer):
             print >> smtpd.DEBUGSTREAM, 'Incoming connection from %s' % repr(addr)
             if self.ssl_ctx and not self.starttls:
                 conn = self.ssl_ctx.wrap_socket(conn, server_side=True)
+                print >> smtpd.DEBUGSTREAM, 'Peer: %s - negotiated TLS: %s' % (repr(__addr), repr(conn.cipher()))
             channel = SMTPChannel(self, conn, addr)
 
 # ReLink implementations
