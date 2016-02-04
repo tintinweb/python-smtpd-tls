@@ -33,8 +33,8 @@ verify:
 
 ::
 
-    #> python -c "import smtpd_tls; echo smtpd_tls"
-    #> python -m smptd_tls --help
+    #> python -c "import smtpd_tls; print smtpd_tls"
+    #> python -m smtpd_tls --help
 
 Example
 =======
