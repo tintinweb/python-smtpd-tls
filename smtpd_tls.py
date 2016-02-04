@@ -51,7 +51,7 @@ and if remoteport is not given, then 25 is used.
 import sys
 import os
 import getopt
-import asyncore
+import asyncore, asynchat
 import ssl
 import smtpd
 
@@ -61,6 +61,21 @@ __version__ = smtpd.__version__ + " (TLS and STARTTLS enabled)"
 program = sys.argv[0]
 
 class SMTPChannel(smtpd.SMTPChannel):
+
+    def smtp_EHLO(self, arg):
+        if not arg:
+            self.push('501 Syntax: HELO hostname')
+            return
+        if self.__greeting:
+            self.push('503 Duplicate HELO/EHLO')
+        else:
+            self.__greeting = arg
+            if isinstance(self.__conn,ssl.SSLSocket):
+                self.push('250 %s' % self.__fqdn)
+            else:
+                self.push('250-%s' % self.__fqdn)
+                self.push('250 STARTTLS')
+    
     def smtp_STARTTLS(self, arg):
         if arg:
             self.push('501 Syntax error (no parameters allowed)')
@@ -68,9 +83,15 @@ class SMTPChannel(smtpd.SMTPChannel):
             self.push('220 Ready to start TLS')
             self.__conn.settimeout(30)
             self.__conn = self.__server.ssl_ctx.wrap_socket(self.__conn, server_side=True)
-            # re-init the channel
-            self = SMTPChannel(self.__server, self.__conn, self.__addr)
             self.__conn.settimeout(None)
+            # re-init channel
+            asynchat.async_chat.__init__(self, self.__conn)
+            self.__line = []
+            self.__state = self.COMMAND
+            self.__greeting = 0
+            self.__mailfrom = None
+            self.__rcpttos = []
+            self.__data = ''
             print >> smtpd.DEBUGSTREAM, 'Peer: %s - negotiated TLS: %s' % (repr(self.__addr), repr(self.__conn.cipher()))
         else:
             self.push('454 TLS not available due to temporary reason')
@@ -90,13 +111,141 @@ class SMTPServer(smtpd.SMTPServer):
             print >> smtpd.DEBUGSTREAM, 'Incoming connection from %s' % repr(addr)
             if self.ssl_ctx and not self.starttls:
                 conn = self.ssl_ctx.wrap_socket(conn, server_side=True)
-                print >> smtpd.DEBUGSTREAM, 'Peer: %s - negotiated TLS: %s' % (repr(__addr), repr(conn.cipher()))
+                print >> smtpd.DEBUGSTREAM, 'Peer: %s - negotiated TLS: %s' % (repr(addr), repr(conn.cipher()))
             channel = SMTPChannel(self, conn, addr)
 
-# ReLink implementations
-class DebuggingServer(SMTPServer, smtpd.DebuggingServer): pass
-class PureProxy(SMTPServer, smtpd.PureProxy): pass
-class MailmanProxy(SMTPServer, smtpd.MailmanProxy): pass
+class DebuggingServer(SMTPServer):
+    # Do something with the gathered message
+    def process_message(self, peer, mailfrom, rcpttos, data):
+        inheaders = 1
+        lines = data.split('\n')
+        print '---------- MESSAGE FOLLOWS ----------'
+        for line in lines:
+            # headers first
+            if inheaders and not line:
+                print 'X-Peer:', peer[0]
+                inheaders = 0
+            print line
+        print '------------ END MESSAGE ------------'
+
+class PureProxy(SMTPServer):
+    def process_message(self, peer, mailfrom, rcpttos, data):
+        lines = data.split('\n')
+        # Look for the last header
+        i = 0
+        for line in lines:
+            if not line:
+                break
+            i += 1
+        lines.insert(i, 'X-Peer: %s' % peer[0])
+        data = NEWLINE.join(lines)
+        refused = self._deliver(mailfrom, rcpttos, data)
+        # TBD: what to do with refused addresses?
+        print >> DEBUGSTREAM, 'we got some refusals:', refused
+
+    def _deliver(self, mailfrom, rcpttos, data):
+        import smtplib
+        refused = {}
+        try:
+            s = smtplib.SMTP()
+            s.connect(self._remoteaddr[0], self._remoteaddr[1])
+            try:
+                refused = s.sendmail(mailfrom, rcpttos, data)
+            finally:
+                s.quit()
+        except smtplib.SMTPRecipientsRefused, e:
+            print >> DEBUGSTREAM, 'got SMTPRecipientsRefused'
+            refused = e.recipients
+        except (socket.error, smtplib.SMTPException), e:
+            print >> DEBUGSTREAM, 'got', e.__class__
+            # All recipients were refused.  If the exception had an associated
+            # error code, use it.  Otherwise,fake it with a non-triggering
+            # exception code.
+            errcode = getattr(e, 'smtp_code', -1)
+            errmsg = getattr(e, 'smtp_error', 'ignore')
+            for r in rcpttos:
+                refused[r] = (errcode, errmsg)
+        return refused
+
+
+class MailmanProxy(PureProxy):
+    def process_message(self, peer, mailfrom, rcpttos, data):
+        from cStringIO import StringIO
+        from Mailman import Utils
+        from Mailman import Message
+        from Mailman import MailList
+        # If the message is to a Mailman mailing list, then we'll invoke the
+        # Mailman script directly, without going through the real smtpd.
+        # Otherwise we'll forward it to the local proxy for disposition.
+        listnames = []
+        for rcpt in rcpttos:
+            local = rcpt.lower().split('@')[0]
+            # We allow the following variations on the theme
+            #   listname
+            #   listname-admin
+            #   listname-owner
+            #   listname-request
+            #   listname-join
+            #   listname-leave
+            parts = local.split('-')
+            if len(parts) > 2:
+                continue
+            listname = parts[0]
+            if len(parts) == 2:
+                command = parts[1]
+            else:
+                command = ''
+            if not Utils.list_exists(listname) or command not in (
+                    '', 'admin', 'owner', 'request', 'join', 'leave'):
+                continue
+            listnames.append((rcpt, listname, command))
+        # Remove all list recipients from rcpttos and forward what we're not
+        # going to take care of ourselves.  Linear removal should be fine
+        # since we don't expect a large number of recipients.
+        for rcpt, listname, command in listnames:
+            rcpttos.remove(rcpt)
+        # If there's any non-list destined recipients left,
+        print >> DEBUGSTREAM, 'forwarding recips:', ' '.join(rcpttos)
+        if rcpttos:
+            refused = self._deliver(mailfrom, rcpttos, data)
+            # TBD: what to do with refused addresses?
+            print >> DEBUGSTREAM, 'we got refusals:', refused
+        # Now deliver directly to the list commands
+        mlists = {}
+        s = StringIO(data)
+        msg = Message.Message(s)
+        # These headers are required for the proper execution of Mailman.  All
+        # MTAs in existence seem to add these if the original message doesn't
+        # have them.
+        if not msg.getheader('from'):
+            msg['From'] = mailfrom
+        if not msg.getheader('date'):
+            msg['Date'] = time.ctime(time.time())
+        for rcpt, listname, command in listnames:
+            print >> DEBUGSTREAM, 'sending message to', rcpt
+            mlist = mlists.get(listname)
+            if not mlist:
+                mlist = MailList.MailList(listname, lock=0)
+                mlists[listname] = mlist
+            # dispatch on the type of command
+            if command == '':
+                # post
+                msg.Enqueue(mlist, tolist=1)
+            elif command == 'admin':
+                msg.Enqueue(mlist, toadmin=1)
+            elif command == 'owner':
+                msg.Enqueue(mlist, toowner=1)
+            elif command == 'request':
+                msg.Enqueue(mlist, torequest=1)
+            elif command in ('join', 'leave'):
+                # TBD: this is a hack!
+                if command == 'join':
+                    msg['Subject'] = 'subscribe'
+                else:
+                    msg['Subject'] = 'unsubscribe'
+                msg.Enqueue(mlist, torequest=1)
+
+
 
 class Options:
     setuid = 1
@@ -115,7 +264,7 @@ def parseargs():
     try:
         opts, args = getopt.getopt(
             sys.argv[1:], 'nVhc:dk:ts',
-            ['class=', 'nosetuid', 'version', 'help', 'debug', 'keyfile', 'tls', 'starttls'])
+            ['class=', 'nosetuid', 'version', 'help', 'debug', 'keyfile=', 'tls', 'starttls'])
     except getopt.error, e:
         usage(1, e)
 
@@ -133,8 +282,8 @@ def parseargs():
         elif opt in ('-d', '--debug'):
             smtpd.DEBUGSTREAM = sys.stderr
         elif opt in ('-k', '--keyfile'):
-            options.sslctx  = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-            options.sslctx .load_cert_chain(certfile=arg, keyfile=arg)
+            options.sslctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+            options.sslctx.load_cert_chain(certfile=arg, keyfile=arg)
         elif opt in ('-t', '--tls'):
             options.starttls = False
         elif opt in ('-s', '--starttls'):

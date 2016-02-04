@@ -21,38 +21,70 @@ from source
 
 verify:
 
-    #> python -c "import smtpd_tls"
+    #> python -c "import smtpd_tls; echo smtpd_tls"
     #> python -m smptd_tls --help
 
 # Example
 
-starttls smtp daemon:
+STARTTLS via smtp port 25:
 
-    #> python -m smtpd_tls --debug -c DebuggingServer --keyfile server.pem --starttls
-    DebuggingServer started at Thu Feb  4 12:30:04 2016
-            Local addr: ('localhost', 8025)
-            Remote addr:('localhost', 25)
+    #> python smtpd_tls.py --debug -c DebuggingServer --starttls --keyfile=../server.pem 0.0.0.0:25
+    DebuggingServer started at Thu Feb  4 16:57:06 2016
+            Local addr: ('0.0.0.0', 25)
+            Remote addr:('mail.somehost.com', 25)
             TLS Mode: explicit (plaintext until STARTTLS)
-            TLS Context: <ssl.SSLContext object at 0x7ff9ee6ee8d8>
-    Incoming connection from ('127.0.0.1', 33485)
-    Peer: ('127.0.0.1', 33485)
-    Data: 'EHLO openssl.client.net'
+            TLS Context: <ssl.SSLContext object at 0x7f8fd8adbbb0>
+    Incoming connection from ('192.168.139.1', 39983)
+    Peer: ('192.168.139.1', 39983)
+    Data: 'ehlo [192.168.139.1]'
     Data: 'STARTTLS'
-    Peer: ('127.0.0.1', 33485)
-    Data: 'HELO aa'
+    Peer: ('192.168.139.1', 39983) - negotiated TLS: ('ECDHE-RSA-AES256-GCM-SHA384', 'TLSv1/SSLv3', 256)
+    Data: 'ehlo [192.168.139.1]'
+    Data: 'mail FROM:<sender@example.com>'
+    ===> MAIL FROM:<sender@example.com>
+    sender: sender@example.com
+    Data: 'rcpt TO:<user@example.com>'
+    ===> RCPT TO:<user@example.com>
+    recips: ['user@example.com']
+    Data: 'data'
+    Data: "From: sender@example.com\r\nTo: user@example.com\r\nSubject: Hello!\r\n\r\nThis message was sent with Python's smtplib."
+    ---------- MESSAGE FOLLOWS ----------
+    From: sender@example.com
+    To: user@example.com
+    Subject: Hello!
+    X-Peer: 192.168.139.1
+
+    This message was sent with Python's smtplib.
+    ------------ END MESSAGE ------------
     Data: 'quit'
 
 
-    #> python -m smtpd_tls --debug -c DebuggingServer --keyfile server.pem --tls
-    DebuggingServer started at Thu Feb  4 12:30:04 2016
-            Local addr: ('localhost', 8025)
-            Remote addr:('localhost', 25)
-            TLS Mode: explicit (plaintext until STARTTLS)
-            TLS Context: <ssl.SSLContext object at 0x7ff9ee6ee8d8>
-    Incoming connection from ('127.0.0.1', 33485)
-    Peer: ('127.0.0.1', 33485)
-    Data: 'EHLO openssl.client.net'
-    Data: 'STARTTLS'
-    Peer: ('127.0.0.1', 33485)
-    Data: 'HELO aa'
+Implicit TLS via smtp port 465:
+
+    #> python smtpd_tls.py --debug -c DebuggingServer --tls --keyfile=../server.pem 0.0.0.0:465
+    DebuggingServer started at Thu Feb  4 17:00:53 2016
+            Local addr: ('0.0.0.0', 465)
+            Remote addr:('mail.somehost.com', 25)
+            TLS Mode: implicit (encrypted from the beginning)
+            TLS Context: <ssl.SSLContext object at 0x7fee6ec36bb0>
+    Incoming connection from ('192.168.139.1', 40028)
+    Peer: ('192.168.139.1', 40028) - negotiated TLS: ('ECDHE-RSA-AES256-GCM-SHA384', 'TLSv1/SSLv3', 256)
+    Peer: ('192.168.139.1', 40028)
+    Data: 'ehlo [192.168.139.1]'
+    Data: 'mail FROM:<sender@example.com>'
+    ===> MAIL FROM:<sender@example.com>
+    sender: sender@example.com
+    Data: 'rcpt TO:<user@example.com>'
+    ===> RCPT TO:<user@example.com>
+    recips: ['user@example.com']
+    Data: 'data'
+    Data: "From: sender@example.com\r\nTo: user@example.com\r\nSubject: Hello!\r\n\r\nThis message was sent with Python's smtplib."
+    ---------- MESSAGE FOLLOWS ----------
+    From: sender@example.com
+    To: user@example.com
+    Subject: Hello!
+    X-Peer: 192.168.139.1
+
+    This message was sent with Python's smtplib.
+    ------------ END MESSAGE ------------
     Data: 'quit'
