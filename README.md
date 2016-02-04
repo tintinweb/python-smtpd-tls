@@ -13,7 +13,7 @@ original smtpd pydoc: https://docs.python.org/2/library/smtpd.html
 
 from pip
 
-    pip install smtpd-s
+    pip install smtpd-tls
 
 from source
 
@@ -21,14 +21,14 @@ from source
 
 verify:
 
-    #> python -c "import smtpds"
-    #> python -m smptds --help
+    #> python -c "import smtpd_tls"
+    #> python -m smptd_tls --help
 
 # Example
 
 starttls smtp daemon:
 
-    python smtpd.py  --debug -c DebuggingServer -kserver.pem --starttls
+    #> python -m smtpd_tls --debug -c DebuggingServer --keyfile server.pem --starttls
     DebuggingServer started at Thu Feb  4 12:30:04 2016
             Local addr: ('localhost', 8025)
             Remote addr:('localhost', 25)
@@ -43,7 +43,7 @@ starttls smtp daemon:
     Data: 'quit'
 
 
-    python smtpd.py  --debug -c DebuggingServer -k ../server.pem --tls
+    #> python -m smtpd_tls --debug -c DebuggingServer --keyfile server.pem --tls
     DebuggingServer started at Thu Feb  4 12:30:04 2016
             Local addr: ('localhost', 8025)
             Remote addr:('localhost', 25)
