@@ -65,8 +65,7 @@ class SMTPChannel(smtpd.SMTPChannel):
     def smtp_EHLO(self, arg):
         if not arg:
             self.push('501 Syntax: HELO hostname')
-            return
-        if self.__greeting:
+        elif self.__greeting:
             self.push('503 Duplicate HELO/EHLO')
         else:
             self.__greeting = arg
