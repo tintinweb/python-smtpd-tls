@@ -55,7 +55,7 @@ import asyncore
 import ssl
 import smtpd
 
-__all__ = ["SMTPServer","DebuggingServer","PureProxy","MailmanProxy"]
+__all__ = ["SMTPServer", "DebuggingServer", "PureProxy", "MailmanProxy"]
 
 __version__ = smtpd.__version__ + " (TLS and STARTTLS enabled)" 
 program = sys.argv[0]
@@ -103,7 +103,6 @@ class Options:
     classname = 'PureProxy'
     sslctx = None
     starttls = True
-
 
 def usage(code, msg=''):
     print >> sys.stderr, __doc__ % globals()

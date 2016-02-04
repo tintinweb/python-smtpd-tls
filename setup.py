@@ -10,7 +10,7 @@ def read(fname):
 setup(
     name="smtpd-tls",
     version="0.1",
-    packages=["smtpd-tls"],
+    packages=["smtpd_tls"],
     author="tintinweb",
     author_email="tintinweb@oststrom.com",
     description=("An extension to the standard python 2.x smtpd library implementing implicit/explicit SSL/TLS/STARTTLS"),
@@ -21,6 +21,6 @@ setup(
     long_description=read("README.rst") if os.path.isfile("README.rst") else read("README.md"),
     install_requires=[],
     package_data={
-                  'smtpd-tls': ['smtpd-tls'],
+                  'smtpd-tls': ['smtpd_tls'],
                   },
 )
