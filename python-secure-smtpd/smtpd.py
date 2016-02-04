@@ -67,7 +67,7 @@ class SMTPChannel(smtpd.SMTPChannel):
         elif self.__server.starttls and not isinstance(self.__conn,ssl.SSLSocket):
             self.push('220 Ready to start TLS')
             self.__conn.settimeout(30)
-            self.__conn = self.__server.ssl_ctx.wrap_socket(self.__conn, server_side=True, do_handshake_on_connect=True)
+            self.__conn = self.__server.ssl_ctx.wrap_socket(self.__conn, server_side=True)
             # re-init the channel
             self = SMTPChannel(self.__server, self.__conn, self.__addr)
             self.__conn.settimeout(None)
