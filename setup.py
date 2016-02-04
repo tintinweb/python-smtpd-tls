@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import os
+import os, sys
 from setuptools import setup
+
+if not (sys.version_info.major==2 and sys.version_info.minor>=7):
+    sys.exit("Sorry, Python < 2.7 is not supported due to missing functionality in the built-in smtpd module")
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
