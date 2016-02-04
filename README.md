@@ -9,6 +9,8 @@ just pass a configured ssl.context (certs, keys, protocols, auth, ...) to smtpd-
 
 original smtpd pydoc: https://docs.python.org/2/library/smtpd.html
 
+**Requires Python 2.7 or higher**
+
 # Install
 
 from pip
